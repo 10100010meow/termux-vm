@@ -8,6 +8,9 @@ PACKAGE_NAME="termux-vm"
 DEBFILE_SHA256="@__DEBFILE_SHA256__@"
 BOOTSTRAP_SHA256="7e24eec480ed70ec4193306f0717d1efc986ef505163d4b82074e0e8167bd819"
 
+## Running under termux-exec is not supported, so unsetting LD_PRELOAD
+unset LD_PRELOAD
+
 export BASEDIR="/data/data/com.termux/files"
 export PREFIX="${BASEDIR}/usr"
 export TMPDIR=$(mktemp -d -p "${BASEDIR}")
