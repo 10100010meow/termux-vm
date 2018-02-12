@@ -1,0 +1,173 @@
+#!/data/data/com.termux/files/usr/bin/bash
+##
+##  Setup and run isolated Termux environment
+##
+##  Leonid Plyushch (C) 2017-2018
+##
+##  This program is free software: you can redistribute it and/or modify
+##  it under the terms of the GNU General Public License as published by
+##  the Free Software Foundation, either version 3 of the License, or
+##  (at your option) any later version.
+##
+##  This program is distributed in the hope that it will be useful,
+##  but WITHOUT ANY WARRANTY; without even the implied warranty of
+##  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+##  GNU General Public License for more details.
+##
+##  You should have received a copy of the GNU General Public License
+##  along with this program.  If not, see <http://www.gnu.org/licenses/>.
+##
+
+ARCH="aarch64"
+BOOTSTRAP_ARCHIVE="${PREFIX}/share/proot/termux-bootstrap-${ARCH}.tar.gz"
+
+usage()
+{
+    echo
+    echo " Usage: termux-container [-h|--help] [PATH]"
+    echo
+    echo " Setup and run an isolated Termux environment at"
+    echo " specified path."
+    echo
+    echo " If you want to have access for files that exists on"
+    echo " host (Termux home and sdcard), then you need to set"
+    echo " environment variable 'MOUNT_HOST_FS'."
+    echo
+}
+
+## Disable LD_PRELOAD in prooted environment
+unset LD_PRELOAD
+
+if [[ $(getenforce | tr '[[:upper:]]' '[[:lower:]]') = "enforcing" ]]; then
+    export PROOT_NO_SECCOMP=1
+    export USE_LINK2SYMLINK=true
+else
+    export USE_LINK2SYMLINK=false
+fi
+
+if [ ! -z "${1}" ]; then
+    if [ "${1}" = "-h" ] || [ "${1}" = "--help" ]; then
+        usage
+        exit 0
+    fi
+
+    ROOTFS="${1}"
+
+    if grep -qP '^-.*$' <<< "${ROOTFS}"; then
+        echo "[!] Directory name cannot begin with '-'."
+        usage
+        exit 1
+    fi
+
+    if [ ! -e "${ROOTFS}" ]; then
+        mkdir -p "${ROOTFS}"
+    fi
+
+    if [ ! -d "${ROOTFS}" ]; then
+        echo "[!] Not a directory '${ROOTFS}'."
+        usage
+        exit 1
+    fi
+else
+    usage
+    exit 1
+fi
+
+BASEDIR="${ROOTFS}/data/data/com.termux/files"
+
+if [ ! -e "${BASEDIR}/home" ]; then
+    echo -n "[*] Creating home directory... "
+    if mkdir -p "${BASEDIR}/home" > /dev/null 2>&1; then
+        echo "OK"
+    else
+        echo "FAIL"
+        exit 1
+    fi
+fi
+
+if [ ! -e "${BASEDIR}/usr" ]; then
+    echo -n "[*] Creating prefix... "
+    if mkdir -p "${BASEDIR}/usr" > /dev/null 2>&1; then
+        echo "OK"
+    else
+        echo "FAIL"
+        exit 1
+    fi
+fi
+
+if [ ! -e "${BASEDIR}/usr/bin/busybox" ]; then
+    echo -n "[*] Unpacking bootstrap archive... "
+    if tar xf "${BOOTSTRAP_ARCHIVE}" -C "${BASEDIR}/usr" > /dev/null 2>&1; then
+        echo "OK"
+    else
+        echo "FAIL"
+        exit 1
+    fi
+fi
+
+## Determine path to shell
+if [ -e "${ROOTFS}/data/data/com.termux/files/usr/bin/login" ]; then
+    TARGET_SHELL="/data/data/com.termux/files/usr/bin/login"
+elif [ -e "${ROOTFS}/data/data/com.termux/files/usr/bin/bash" ]; then
+    TARGET_SHELL="/data/data/com.termux/files/usr/bin/bash"
+elif [ -e "${ROOTFS}/data/data/com.termux/files/usr/bin/applets/ash" ]; then
+    TARGET_SHELL="/data/data/com.termux/files/usr/bin/applets/ash"
+else
+    TARGET_SHELL="/system/bin/sh"
+fi
+set -- "${TARGET_SHELL}"
+
+## Prepend 'env -i {ENVIRONMENT}' to target command
+set -- "PATH=/data/data/com.termux/files/usr/bin:/data/data/com.termux/files/usr/bin/applets" "${@}"
+set -- "LD_LIBRARY_PATH=/data/data/com.termux/files/usr/lib" "${@}"
+set -- "TMPDIR=/data/data/com.termux/files/usr/tmp" "${@}"
+set -- "PREFIX=/data/data/com.termux/files/usr" "${@}"
+set -- "HOME=/data/data/com.termux/files/home" "${@}"
+set -- "TERM=xterm-256color" "${@}"
+set -- "EXTERNAL_STORAGE=/sdcard" "${@}"
+set -- "LANG=en_US.UTF-8" "${@}"
+
+BOOTCLASSPATH=$(find /system/framework -type f -iname \*.jar 2>/dev/null | sort)
+if [ ! -z "${BOOTCLASSPATH}" ]; then
+    BOOTCLASSPATH=$(echo "${BOOTCLASSPATH}" | tr '\n' ':')
+    BOOTCLASSPATH=${BOOTCLASSPATH:0:-1}
+else
+    unset BOOTCLASSPATH
+fi
+[ ! -z "${BOOTCLASSPATH}" ] && export BOOTCLASSPATH
+set -- "BOOTCLASSPATH=${BOOTCLASSPATH}" "${@}"
+
+set -- "ANDROID_ROOT=/system" "${@}"
+set -- "ANDROID_DATA=/data" "${@}"
+set -- "/data/data/com.termux/files/usr/bin/env" '-i' "${@}"
+
+## Path to new root filesystem directory
+set -- '-r' "${ROOTFS}" "${@}"
+
+## Android filesystems
+set -- '-b' "/dev:/dev" "${@}"
+set -- '-b' "/proc/self/fd:/dev/fd" "${@}"
+set -- '-b' "/proc/self/fd/0:/dev/stdin" "${@}"
+set -- '-b' "/proc/self/fd/1:/dev/stdout" "${@}"
+set -- '-b' "/proc/self/fd/2:/dev/stderr" "${@}"
+set -- '-b' "/etc:/etc" "${@}"
+set -- '-b' "/proc:/proc" "${@}"
+set -- '-b' "/sys:/sys" "${@}"
+set -- '-b' "/system:/system" "${@}"
+set -- '-b' "/vendor:/vendor" "${@}"
+
+if [ ! -z "${MOUNT_HOST_FS}" ]; then
+    set -- '-b' "/data/data/com.termux/files/home:/data/data/com.termux/files/home/host-home" "${@}"
+    set -- '-b' "/mnt:/mnt" "${@}"
+    set -- '-b' "/sdcard:/sdcard" "${@}"
+    set -- '-b' "/storage:/storage" "${@}"
+fi
+
+## Set current working directory to container's home
+set -- '--cwd=/data/data/com.termux/files/home' "${@}"
+
+## Use link2symlink on SELinux-enabled devices
+${USE_LINK2SYMLINK} && set -- '--link2symlink' "${@}"
+
+echo "[*] Starting Termux environment"
+proot --kill-on-exit "${@}"

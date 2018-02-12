@@ -1,0 +1,51 @@
+###############################################################
+##
+##  Profile for sh/bash
+##
+###############################################################
+
+##
+## Set the strict file mode creation mask so
+## only user with Termux UID can access them.
+##
+umask 077
+
+##
+## A path to the Termux prefixed environment
+##
+## Usually it should be set by the application,
+## but we need to make sure that it exists and
+## pointing to the right place.
+##
+export PREFIX="/data/data/com.termux/files/usr"
+
+##
+## A path to the home directory
+##
+export HOME="/data/data/com.termux/files/home"
+
+##
+## Basic environment variables
+##
+## Do not touch if you are don't know what you are
+## doing.
+##
+export EDITOR="${PREFIX}/bin/nano"
+export EXTERNAL_STORAGE="/storage/emulated/0"
+export LD_LIBRARY_PATH="${PREFIX}/lib"
+export PATH="${PREFIX}/bin"
+export SHELL=$(readlink "/proc/$$/exe")
+export TERMINFO="${PREFIX}/share/terminfo"
+export TMPDIR="${PREFIX}/tmp"
+export USER=$(id -nu)
+
+##
+## Load bashrc (only when non-interactive)
+##
+if [ "${BASH}" ]; then
+    if [[ "$-" == *"i"* ]]; then
+        if [ -r "${PREFIX}/etc/bash.bashrc" ]; then
+            . "${PREFIX}/etc/bash.bashrc"
+        fi
+    fi
+fi

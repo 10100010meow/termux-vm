@@ -1,0 +1,83 @@
+#!/data/data/com.termux/files/usr/bin/bash
+##
+##  Forward a port via UPnP
+##
+##  Leonid Plyushch (C) 2017-2018
+##
+##  This program is free software: you can redistribute it and/or modify
+##  it under the terms of the GNU General Public License as published by
+##  the Free Software Foundation, either version 3 of the License, or
+##  (at your option) any later version.
+##
+##  This program is distributed in the hope that it will be useful,
+##  but WITHOUT ANY WARRANTY; without even the implied warranty of
+##  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+##  GNU General Public License for more details.
+##
+##  You should have received a copy of the GNU General Public License
+##  along with this program.  If not, see <http://www.gnu.org/licenses/>.
+##
+
+usage()
+{
+    echo
+    echo " Usage: addupnpfwd [port] (protocol)"
+    echo
+    echo " Forward port via UPnP."
+    echo
+    echo " Arguments:"
+    echo
+    echo "  port:"
+    echo "   Should be a port of the service running on this"
+    echo "   system. Mandatory."
+    echo
+    echo "  protocol:"
+    echo "   Can be specified to tcp, udp or both (tcp + udp)."
+    echo "   If omitted, then protocol will be set to 'both'."
+    echo
+}
+
+if [ ! -z "${1}" ]; then
+    if ! grep -qP '^\d{1,5}$' <(echo "${1}"); then
+        echo "[!] Invalid port '${1}'."
+        usage
+        exit 1
+    else
+        PORT="${1}"
+    fi
+
+    if [ ! -z "${2}" ]; then
+        if grep -qP '^tcp$|^udp$|^both$' <(echo "${2}"); then
+            if [ "${2}" = "both" ]; then
+                PROTO="tcp udp"
+            else
+                PROTO="${2}"
+            fi
+        else
+            echo "[!] Invalid protocol '${2}'."
+            usage
+            exit 1
+        fi
+    else
+        PROTO="tcp udp"
+    fi
+
+    IPADDR=$(localip)
+    if [ -z "${IPADDR}" ]; then
+        echo "[!] Unable to get a device IP address."
+        exit 1
+    fi
+
+    for protocol in ${PROTO}; do
+        echo -n "[*] Adding UPnP mapping '${PORT}:${PORT}' (${protocol})... "
+        if upnpc -e "Termux/addupnpfwd" -a "${IPADDR}" "${PORT}" "${PORT}" "${protocol}" > /dev/null 2>&1; then
+            echo "OK"
+        else
+            echo "FAIL"
+            exit 1
+        fi
+    done
+else
+    usage
+    exit 1
+fi

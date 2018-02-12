@@ -1,0 +1,13 @@
+#!/data/data/com.termux/files/usr/bin/sh
+
+unset LD_LIBRARY_PATH
+unset LD_PRELOAD
+
+bin="ping"
+
+if [ ! -e "/system/bin/${bin}" ]; then
+    echo "'${bin}' is not available in your OS"
+    exit 1
+fi
+
+exec /system/bin/${bin} "$@"
