@@ -82,7 +82,7 @@ start_service()
 
             if ${ENABLE_RELAYING}; then
                 echo -n "== Forwarding ORPort via UPnP... "
-                if addupnpfwd "${TOR_ORPORT}" "${TOR_ORPORT}" tcp >/dev/null 2>&1; then
+                if addupnpfwd "${TOR_ORPORT}" tcp >/dev/null 2>&1; then
                     echo "OK"
                 else
                     echo "FAIL"
@@ -91,7 +91,7 @@ start_service()
 
                 if [ ! -z "${TOR_DIRPORT}" ]; then
                     echo -n "== Forwarding DirPort via UPnP... "
-                    if addupnpfwd "${TOR_DIRPORT}" "${TOR_DIRPORT}" tcp >/dev/null 2>&1; then
+                    if addupnpfwd "${TOR_DIRPORT}" tcp >/dev/null 2>&1; then
                         echo "OK"
                     else
                         echo "FAIL"
@@ -185,6 +185,8 @@ service_status()
 ##  Command line arguments handling
 ##
 ###############################################################################
+
+[ ! -z "${HOME}" ] && cd "${HOME}" > /dev/null 2>&1
 
 if [ ! -z "${1}" ]; then
     case "${1}" in
