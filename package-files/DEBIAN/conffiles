@@ -6,6 +6,7 @@ data/data/com.termux/files/usr/etc/libnl/pktloc
 data/data/com.termux/files/usr/etc/login_overrides.sh
 data/data/com.termux/files/usr/etc/nanorc
 data/data/com.termux/files/usr/etc/profile
+data/data/com.termux/files/usr/etc/resolv.conf
 data/data/com.termux/files/usr/etc/ssh/moduli
 data/data/com.termux/files/usr/etc/ssh/ssh_config
 data/data/com.termux/files/usr/etc/ssh/sshd_config
