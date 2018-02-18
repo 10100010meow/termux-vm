@@ -9,14 +9,10 @@ RunAsDaemon 1
 
 ## Listen on port 9050 and allow connections
 ## from local networks
-SOCKSPort 0.0.0.0:9050
-SocksPolicy accept 10.0.0.0/8
-SocksPolicy accept 127.0.0.0/8
-SocksPolicy accept 172.16.0.0/12
-#SocksPolicy accept 192.168.0.0/16
-SocksPolicy reject *
+SOCKSPort 127.0.0.1:9050
 
 ## Setup resolver
+DNSPort 127.0.0.1:9053
 AutomapHostsOnResolve 1
 AutomapHostsSuffixes .onion,.exit
 VirtualAddrNetwork 10.192.0.0/10

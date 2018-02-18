@@ -40,6 +40,9 @@ mksnapimage()
 ##
 start_qemu_session()
 {
+    ## set xterm/termux title
+    echo -ne '\e]0;QEMU\a'
+
     exec qemu-system-x86_64 -display curses \
                             -device e1000,netdev=qemunet0 \
                             -hda "${ARCHLINUX_SNAP_IMAGE}" \
@@ -54,9 +57,10 @@ start_qemu_session()
 ##
 connect_to_qemu()
 {
-    echo "[*] Connecting to 127.0.0.1:${QEMU_SSH_PORT} via SSH..."
+    echo "[*] Waiting for SSH port..."
     while true; do
-        if (echo 'porttest' | nc 127.0.0.1 "${QEMU_SSH_PORT}") > /dev/null 2>&1; then
+        if [[ $(echo "porttest" | nc 127.0.0.1 "${QEMU_SSH_PORT}" 2>/dev/null | grep SSH | head -c3) = "SSH" ]]; then
+            echo "[*] Connecting to 127.0.0.1:${QEMU_SSH_PORT}..."
             exec ssh -o UserKnownHostsFile=/dev/null \
                      -o StrictHostKeyChecking=no \
                      -p "${QEMU_SSH_PORT}" \

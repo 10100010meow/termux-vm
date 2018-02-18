@@ -3,21 +3,13 @@
 ##  Service file for TOR
 ##
 
-show_usage()
-{
-    echo
-    echo " Usage: torctl [start|stop|restart|status]"
-    echo
-    echo " Start/Stop TOR daemon."
-    echo
-}
-
-if [ -z "${1}" ]; then
-    show_usage
-fi
-
 if [ ! -f "${PREFIX}/etc/tor/torrc" ]; then
     echo "== ERROR: TOR configuration file is not exist."
+    exit 1
+fi
+
+if ! grep -q -P '^\s*RunAsDaemon\s+1\s*$' "${PREFIX}/etc/tor/torrc"; then
+    echo "== ERROR: tor is not configured to run as daemon."
     exit 1
 fi
 
@@ -25,9 +17,6 @@ TOR_PIDFILE=$(grep -P '^\s*PidFile\s+[^\s]+\s*$' "${PREFIX}/etc/tor/torrc" | hea
 if [ -z "${TOR_PIDFILE}" ]; then
     echo "== ERROR: pid file path is not set."
     exit 1
-fi
-if [ -f "${TOR_PIDFILE}" ]; then
-    TOR_PID=$(cat "${TOR_PIDFILE}")
 fi
 
 if grep -q -P '^%include\s+/data/data/com.termux/files/usr/etc/tor/addons/relay.torrc\s*' "${PREFIX}/etc/tor/torrc"; then
@@ -64,17 +53,33 @@ fi
 ##  Service functions
 ##
 ###############################################################################
+get_service_pid()
+{
+    local TOR_PID
+
+    if [ -f "${TOR_PIDFILE}" ]; then
+        TOR_PID=$(cat "${TOR_PIDFILE}")
+        if [ ! -z "${TOR_PID}" ]; then
+            if ! kill -0 "${TOR_PID}" > /dev/null 2>&1; then
+                unset TOR_PID
+                rm -f "${TOR_PIDFILE}"
+            fi
+        fi
+    else
+        unset TOR_PID
+    fi
+
+    echo "${TOR_PID}"
+}
 
 start_service()
 {
-    if ! grep -q -P '^\s*RunAsDaemon\s+1\s*$' "${PREFIX}/etc/tor/torrc"; then
-        echo "== ERROR: tor is not configured to run as daemon."
-        exit 1
-    fi
+    local TOR_PID
+    TOR_PID=$(get_service_pid)
 
     if [ ! -z "${TOR_PID}" ]; then
         echo "== TOR is already running."
-        exit 1
+        return 1
     else
         echo -n "== Starting TOR... "
         if tor > /dev/null 2>&1; then
@@ -86,7 +91,7 @@ start_service()
                     echo "OK"
                 else
                     echo "FAIL"
-                    exit 1
+                    return 1
                 fi
 
                 if [ ! -z "${TOR_DIRPORT}" ]; then
@@ -95,28 +100,31 @@ start_service()
                         echo "OK"
                     else
                         echo "FAIL"
-                        exit 1
+                        return 1
                     fi
                 fi
             fi
         else
             echo "FAIL"
-            exit 1
+            return 1
         fi
     fi
 }
 
 stop_service()
 {
+    local TOR_PID
+    TOR_PID=$(get_service_pid)
+
     if [ ! -z "${TOR_PID}" ]; then
         echo -n "== Stopping TOR... "
         kill -TERM "${TOR_PID}" > /dev/null 2>&1
         TIMER=0
         while true; do
-            if [ ${TIMER} -gt 14 ]; then
+            if [ ${TIMER} -gt 30 ]; then
                 echo "FAIL"
                 rm -f "${TOR_PIDFILE}" > /dev/null 2>&1
-                exit 1
+                return 1
             fi
 
             if [ ! -e "${TOR_PIDFILE}" ]; then
@@ -147,12 +155,15 @@ stop_service()
         fi
     else
         echo "== TOR is not running."
-        exit 1
+        return 1
     fi
 }
 
 service_status()
 {
+    local TOR_PID
+    TOR_PID=$(get_service_pid)
+
     if [ ! -z "${TOR_PID}" ]; then
         echo "== TOR is running, pid ${TOR_PID}."
 
@@ -177,7 +188,26 @@ service_status()
         echo "== TOR is not running."
     fi
 
-    exit 0
+    return 0
+}
+
+service_reload_config()
+{
+    local TOR_PID
+    TOR_PID=$(get_service_pid)
+
+    if [ ! -z "${TOR_PID}" ]; then
+        echo -n "== Reloading configuration file... "
+        if kill -HUP "${TOR_PID}" > /dev/null 2>&1; then
+           echo "OK"
+        else
+           echo "FAIL"
+           return 1
+        fi
+    else
+        echo "== TOR is not running."
+        return 1
+    fi
 }
 
 ###############################################################################
@@ -188,25 +218,47 @@ service_status()
 
 [ ! -z "${HOME}" ] && cd "${HOME}" > /dev/null 2>&1
 
+show_usage()
+{
+    echo
+    echo " Usage: torctl [COMMAND]"
+    echo
+    echo " Start/Stop TOR daemon."
+    echo
+    echo " Commands:"
+    echo "  reload    - reload configuration"
+    echo "  restart   - restart service"
+    echo "  start     - start service"
+    echo "  status    - check if service is running"
+    echo "  stop      - stop service"
+    echo
+}
+
 if [ ! -z "${1}" ]; then
     case "${1}" in
-        start)
-            start_service
-            ;;
-        stop)
-            stop_service
+        reload)
+            service_reload_config
             ;;
         restart)
             stop_service
-            sync
+            start_service
+            ;;
+        start)
             start_service
             ;;
         status)
             service_status
             ;;
+        stop)
+            stop_service
+            ;;
         *)
+            echo
+            echo "[!] Invalid command '${1}'."
             show_usage
             exit 1
             ;;
     esac
+else
+    show_usage
 fi
